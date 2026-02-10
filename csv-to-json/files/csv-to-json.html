@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="utf-8">
+	<title>CSV to JSON</title>
+	<style>
+		h1 { font-size: 20px; }
+		.radioArea, #inputArea, #exportLink { margin-bottom: 20px; }
+	</style>
+</head>
+<body>
+<h1>CSV to JSON</h1>
+<form class="form" id="form" name="myform">
+	<input type="file" name="myfile"><br>
+	<textarea name="output" cols="80" rows="10"></textarea>
+	<div id="inputArea"></div>
+	<button type="button" id="conversionBtn" name="conversionBtn">JSONに変換</button><br>
+	<textarea name="conversion" cols="80" rows="10"></textarea>
+	<p><a id="exportLink" href=""></a></p>
+</form>
+<script>
+/*
+formにname属性を指定して、JSからForm要素を取得できるようにする
+document.formsは現在の文書のフォーム要素のリスト(FileList)を返す
+*/
+var form = document.forms.myform;
+
+var inputArea = document.getElementById('inputArea');
+var conversionBtn = document.getElementById('conversionBtn');
+var exportLink = document.getElementById('exportLink');
+var headers = [];
+var lines = [];
+var fileName;
+var formElem;
+var radioNodeList;
+var radioChecked;
+
+/*
+ファイルが読み込まれた時の処理
+inputタグのイベント処理を作成しchangeを使ってファイルを読み込んだかどうかを検知する
+*/
+form.myfile.addEventListener('change', function(e) {
+	/*
+	読み込んだファイル情報を取得
+	e.target.filesで読み込んだファイルの情報にアクセスできる
+	0番目の要素に読み込んだファイルのデータがある
+	*/
+	var result = e.target.files[0];
+
+	// FileReaderのインスタンスを作成する
+	var reader = new FileReader();
+
+	// FileReaderオブジェクトのインスタンスをもとに、readAsText()で読み込んだファイルの中身を取得する
+	reader.readAsText(result, 'shift-jis');
+
+	/*
+	ファイルの中身を取得後に処理を行う
+		ファイルの中身をtextarea内に表示する
+		取得したファイルの中身はreader.resultに格納されている
+	*/
+	reader.addEventListener('load', function() {
+		fileName = e.target.files[0].name.split(/\.(?=[^.]+$)/);
+		form.output.textContent = reader.result;
+		form.conversion.textContent = "";
+
+		// 空行以外のときだけ返す ["a,b,c","a,b,c","a,b,c"]
+		lines = reader.result.split("\n").filter(line=> line);
+
+		// 項目名を取得 ["A","B","C"]
+		headers = lines[0].split(",");
+
+		// 項目名を表示
+		if (inputArea.children != null) {
+			while (inputArea.firstChild) inputArea.removeChild(inputArea.firstChild);
+		}
+		headers.forEach(function(h, i) {
+			var label = document.createElement('label');
+			var inputCheck = document.createElement('input');
+			var span = document.createElement('span');
+			var br = document.createElement('br');
+			inputCheck.type ="checkbox";
+			inputCheck.name = h;
+			inputCheck.classList.add('ckbox');
+			inputCheck.setAttribute("id", "ckbox" + i);
+			inputCheck.setAttribute("checked", "checked");
+			span.innerHTML = h;
+			label.appendChild(inputCheck);
+			label.appendChild(span);
+			inputArea.appendChild(label);
+			inputArea.appendChild(br);
+		});
+	})
+})
+
+conversionBtn.addEventListener('click', function() {
+	var ckbox = document.getElementsByClassName('ckbox');
+	var ckStatus = [];
+	// 選択されたチェックボックスのindexを格納
+	for (var i = 0; i < ckbox.length; i++) {
+		if (ckbox[i].checked) {
+			ckStatus.push(i);
+		}
+	}
+
+	var results = [];
+	for (var i = 1; i < lines.length; i++){
+		var obj = {};
+		// データの行を一行ずつ読み込む ["a","b","c"]
+		var currentline = lines[i].split(",");
+		for(var j = 0; j < ckStatus.length; j++) {
+			// チェックボックスで選択された項目名が順番に入る
+			var header = headers[ckStatus[j]];
+			// 「KEY　:　VALUE」 一件分のオブジェクトに入れるための項目と値のセットの形を作る
+			obj[header] = currentline[ckStatus[j]];
+		}
+		// 一件ずつオブジェクトを追加する
+		results.push(obj);
+	}
+
+	// JSON.stringifyでJavaScriptの値をJSON文字列に変換
+	var jsonStr = JSON.stringify(results, null, '\t');
+	form.conversion.textContent = jsonStr;
+
+	exportLink.textContent = 'ファイル出力';
+	exportLink.download = fileName[0] + '.json';
+	exportLink.href = window.URL.createObjectURL(new Blob([jsonStr], { type: 'text/plain' }));
+	exportLink.dataset.downloadurl = ['text/plain', exportLink.download, exportLink.href].join(':');
+});
+
+function onRadioButtonChange() {
+	formElem = document.getElementById( "form" );
+	// form要素内のラジオボタングループ(name="selectFile")を取得
+	radioNodeList = formElem.selectFile;
+	// 選択状態の値(value)を取得
+	radioChecked = radioNodeList.value;
+}
+</script>
+</body>
+</html>
