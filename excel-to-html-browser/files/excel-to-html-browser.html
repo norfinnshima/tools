@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Excel to HTML Browser</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #edf3ea;
+      --panel: rgba(255, 255, 255, 0.92);
+      --border: #b7c8b2;
+      --text: #203025;
+      --muted: #5a6b5e;
+      --accent: #2f6b46;
+      --accent-strong: #214f34;
+      --preview: #fbfdf9;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top right, rgba(47, 107, 70, 0.12), transparent 30%),
+        linear-gradient(180deg, #f8fbf6 0%, var(--bg) 100%);
+    }
+
+    main {
+      width: min(1080px, calc(100% - 32px));
+      margin: 28px auto 48px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 22px 60px rgba(27, 44, 31, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 42px);
+    }
+
+    p {
+      margin: 0;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .panel {
+      margin-top: 22px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+    }
+
+    .controls,
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: center;
+    }
+
+    .actions {
+      margin-top: 16px;
+    }
+
+    label {
+      font-weight: 700;
+    }
+
+    input[type="file"],
+    select,
+    button,
+    a.button {
+      font: inherit;
+    }
+
+    select,
+    button,
+    a.button {
+      min-height: 40px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+
+    button,
+    a.button {
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    button:hover,
+    a.button:hover {
+      background: var(--accent-strong);
+    }
+
+    button:disabled,
+    a.button[aria-disabled="true"] {
+      background: #9db1a3;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 240px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      resize: vertical;
+      font: 14px/1.5 "SFMono-Regular", Consolas, monospace;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .preview-frame {
+      overflow-x: auto;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--preview);
+    }
+
+    .table_wrap {
+      min-width: 540px;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    .table th,
+    .table td {
+      padding: 10px 12px;
+      border: 1px solid #d7e2d2;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .table thead th {
+      background: #eef5ec;
+    }
+
+    .hint {
+      margin-top: 12px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 640px) {
+      main {
+        width: min(100%, calc(100% - 20px));
+        margin: 10px auto 24px;
+        padding: 16px;
+      }
+
+      .panel {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Excel to HTML</h1>
+      <p>ブラウザだけで Excel を読み込み、HTML テーブル断片へ変換します。</p>
+    </header>
+
+    <section class="panel" aria-label="変換設定">
+      <div class="controls">
+        <label for="fileInput">Excel ファイル</label>
+        <input id="fileInput" type="file" accept=".xlsx,.xls">
+
+        <label for="sheetSelect">シート</label>
+        <select id="sheetSelect" disabled>
+          <option>未選択</option>
+        </select>
+      </div>
+
+      <div class="actions">
+        <button id="convertButton" type="button" disabled>HTML に変換</button>
+        <a id="downloadLink" class="button" aria-disabled="true">HTML を保存</a>
+      </div>
+
+      <p class="hint">このページは Excel 読み込みに CDN 上の SheetJS を使います。オフラインでは読み込めません。</p>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <label for="htmlOutput">HTML 出力</label>
+        <span id="htmlStatus" class="status">未変換</span>
+      </div>
+      <textarea id="htmlOutput" readonly></textarea>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <label>プレビュー</label>
+        <span id="previewStatus" class="status">ファイル未選択</span>
+      </div>
+      <div id="preview" class="preview-frame"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    const state = {
+      baseName: "table",
+      workbook: null,
+      sheetNames: [],
+      downloadUrl: null,
+    };
+
+    const fileInput = document.getElementById("fileInput");
+    const sheetSelect = document.getElementById("sheetSelect");
+    const convertButton = document.getElementById("convertButton");
+    const downloadLink = document.getElementById("downloadLink");
+    const htmlOutput = document.getElementById("htmlOutput");
+    const htmlStatus = document.getElementById("htmlStatus");
+    const previewStatus = document.getElementById("previewStatus");
+    const preview = document.getElementById("preview");
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function normalizeValue(value) {
+      if (value === null || value === undefined) {
+        return "";
+      }
+
+      return escapeHtml(String(value))
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .replace(/\n/g, "<br>");
+    }
+
+    function isEmptyCell(value) {
+      return value === null || value === undefined;
+    }
+
+    function sanitizeHeaders(row) {
+      return row.map((cell, index) => {
+        const text = String(cell ?? "").trim();
+        return text || `column_${index + 1}`;
+      });
+    }
+
+    function resetDownloadLink() {
+      if (state.downloadUrl) {
+        URL.revokeObjectURL(state.downloadUrl);
+      }
+      state.downloadUrl = null;
+      downloadLink.removeAttribute("href");
+      downloadLink.removeAttribute("download");
+      downloadLink.setAttribute("aria-disabled", "true");
+    }
+
+    function buildRowspanMap(rows, columnCount) {
+      const spans = rows.map(() => Array(columnCount).fill(1));
+
+      for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+        let rowIndex = 0;
+
+        while (rowIndex < rows.length) {
+          const value = rows[rowIndex][colIndex];
+          if (isEmptyCell(value)) {
+            spans[rowIndex][colIndex] = 0;
+            rowIndex += 1;
+            continue;
+          }
+
+          let span = 1;
+          let nextRow = rowIndex + 1;
+
+          while (nextRow < rows.length && isEmptyCell(rows[nextRow][colIndex])) {
+            span += 1;
+            spans[nextRow][colIndex] = 0;
+            nextRow += 1;
+          }
+
+          spans[rowIndex][colIndex] = span;
+          rowIndex = nextRow;
+        }
+      }
+
+      return spans;
+    }
+
+    function renderTable(headers, rows) {
+      const columnCount = headers.length;
+      const spans = buildRowspanMap(rows, columnCount);
+
+      const headerCells = headers
+        .map((header) => `        <th>${escapeHtml(header)}</th>`)
+        .join("\n");
+
+      const bodyRows = rows.map((row, rowIndex) => {
+        const cells = [];
+
+        for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+          const span = spans[rowIndex][colIndex];
+          if (span === 0) {
+            continue;
+          }
+
+          const rowspanAttr = span > 1 ? ` rowspan="${span}"` : "";
+          cells.push(`        <td${rowspanAttr}>${normalizeValue(row[colIndex])}</td>`);
+        }
+
+        return ["      <tr>", ...cells, "      </tr>"].join("\n");
+      }).join("\n");
+
+      return [
+        '<div class="table_wrap">',
+        '  <table class="table">',
+        "    <thead>",
+        "      <tr>",
+        headerCells,
+        "      </tr>",
+        "    </thead>",
+        "    <tbody>",
+        bodyRows,
+        "    </tbody>",
+        "  </table>",
+        "</div><!-- table_wrap -->",
+        "",
+      ].join("\n");
+    }
+
+    function updateDownloadLink(htmlText) {
+      resetDownloadLink();
+      state.downloadUrl = URL.createObjectURL(new Blob([htmlText], { type: "text/html" }));
+      downloadLink.href = state.downloadUrl;
+      downloadLink.download = `${state.baseName}.html`;
+      downloadLink.setAttribute("aria-disabled", "false");
+    }
+
+    function readSheetRows(sheetName) {
+      const sheet = state.workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: false,
+        defval: null,
+        blankrows: false,
+      });
+
+      if (rows.length === 0) {
+        throw new Error("シートに有効なデータがありません。");
+      }
+
+      const headers = sanitizeHeaders(rows[0]);
+      const columnCount = headers.length;
+      const body = rows.slice(1).map((row) => {
+        const normalized = Array.from({ length: columnCount }, (_, index) => row[index] ?? null);
+        return normalized;
+      });
+
+      return { headers, body };
+    }
+
+    async function loadWorkbook(file) {
+      if (typeof XLSX === "undefined") {
+        throw new Error("SheetJS を読み込めませんでした。ネットワーク接続を確認してください。");
+      }
+
+      const buffer = await file.arrayBuffer();
+      state.workbook = XLSX.read(buffer, { type: "array" });
+      state.sheetNames = state.workbook.SheetNames;
+      state.baseName = file.name.replace(/\.[^.]+$/, "") || "table";
+
+      sheetSelect.replaceChildren();
+      state.sheetNames.forEach((sheetName) => {
+        const option = document.createElement("option");
+        option.value = sheetName;
+        option.textContent = sheetName;
+        sheetSelect.append(option);
+      });
+
+      sheetSelect.disabled = false;
+      convertButton.disabled = false;
+      previewStatus.textContent = `${state.sheetNames.length} シート`;
+      htmlOutput.value = "";
+      htmlStatus.textContent = "未変換";
+      preview.replaceChildren();
+      resetDownloadLink();
+    }
+
+    function convertSelectedSheet() {
+      const sheetName = sheetSelect.value;
+      const { headers, body } = readSheetRows(sheetName);
+      const htmlText = renderTable(headers, body);
+      htmlOutput.value = htmlText;
+      htmlStatus.textContent = `${sheetName}: ${body.length} 行`;
+      previewStatus.textContent = `${sheetName} をプレビュー中`;
+      preview.innerHTML = htmlText;
+      updateDownloadLink(htmlText);
+    }
+
+    fileInput.addEventListener("change", async () => {
+      const [file] = fileInput.files;
+      if (!file) {
+        return;
+      }
+
+      try {
+        await loadWorkbook(file);
+      } catch (error) {
+        state.workbook = null;
+        state.sheetNames = [];
+        sheetSelect.disabled = true;
+        convertButton.disabled = true;
+        sheetSelect.replaceChildren(new Option("未選択", ""));
+        previewStatus.textContent = error.message;
+        htmlStatus.textContent = "未変換";
+        htmlOutput.value = "";
+        preview.replaceChildren();
+        resetDownloadLink();
+      }
+    });
+
+    convertButton.addEventListener("click", () => {
+      if (!state.workbook) {
+        return;
+      }
+
+      try {
+        convertSelectedSheet();
+      } catch (error) {
+        htmlStatus.textContent = error.message;
+        htmlOutput.value = "";
+        preview.replaceChildren();
+        resetDownloadLink();
+      }
+    });
+
+    sheetSelect.addEventListener("change", () => {
+      if (!state.workbook || !htmlOutput.value) {
+        return;
+      }
+
+      try {
+        convertSelectedSheet();
+      } catch (error) {
+        htmlStatus.textContent = error.message;
+      }
+    });
+
+    window.addEventListener("beforeunload", resetDownloadLink);
+  </script>
+</body>
+</html>

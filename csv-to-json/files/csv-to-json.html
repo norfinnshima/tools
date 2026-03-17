@@ -1,139 +1,448 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-	<meta charset="utf-8">
-	<title>CSV to JSON</title>
-	<style>
-		h1 { font-size: 20px; }
-		.radioArea, #inputArea, #exportLink { margin-bottom: 20px; }
-	</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSV to JSON</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f1e8;
+      --panel: #fffdf7;
+      --border: #d6c7af;
+      --text: #2e261d;
+      --muted: #6f6355;
+      --accent: #7b4b2a;
+      --accent-strong: #5f3417;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(123, 75, 42, 0.12), transparent 32%),
+        linear-gradient(180deg, #f8f5ee 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    main {
+      width: min(960px, calc(100% - 32px));
+      margin: 32px auto 48px;
+      padding: 24px;
+      background: rgba(255, 253, 247, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(59, 42, 24, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 40px);
+    }
+
+    p {
+      margin: 0;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .toolbar,
+    .panel {
+      margin-top: 24px;
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    .toolbar {
+      display: grid;
+      gap: 16px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: center;
+    }
+
+    label {
+      font-weight: 700;
+    }
+
+    input[type="file"],
+    select,
+    button,
+    a.button {
+      font: inherit;
+    }
+
+    select,
+    button,
+    a.button {
+      min-height: 40px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+
+    button,
+    a.button {
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    button:hover,
+    a.button:hover {
+      background: var(--accent-strong);
+    }
+
+    button:disabled,
+    a.button[aria-disabled="true"] {
+      background: #b8ab9a;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px 14px;
+      margin-top: 16px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font: 14px/1.5 "SFMono-Regular", Consolas, monospace;
+      resize: vertical;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+    }
+
+    .status {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 640px) {
+      main {
+        width: min(100%, calc(100% - 20px));
+        margin: 10px auto 24px;
+        padding: 16px;
+      }
+
+      .toolbar,
+      .panel {
+        padding: 16px;
+      }
+    }
+  </style>
 </head>
 <body>
-<h1>CSV to JSON</h1>
-<form class="form" id="form" name="myform">
-	<input type="file" name="myfile"><br>
-	<textarea name="output" cols="80" rows="10"></textarea>
-	<div id="inputArea"></div>
-	<button type="button" id="conversionBtn" name="conversionBtn">JSONに変換</button><br>
-	<textarea name="conversion" cols="80" rows="10"></textarea>
-	<p><a id="exportLink" href=""></a></p>
-</form>
-<script>
-/*
-formにname属性を指定して、JSからForm要素を取得できるようにする
-document.formsは現在の文書のフォーム要素のリスト(FileList)を返す
-*/
-var form = document.forms.myform;
+  <main>
+    <header>
+      <h1>CSV to JSON</h1>
+      <p>CSV を読み込み、出力したい列だけ選んで JSON として保存します。</p>
+    </header>
 
-var inputArea = document.getElementById('inputArea');
-var conversionBtn = document.getElementById('conversionBtn');
-var exportLink = document.getElementById('exportLink');
-var headers = [];
-var lines = [];
-var fileName;
-var formElem;
-var radioNodeList;
-var radioChecked;
+    <section class="toolbar" aria-label="変換設定">
+      <div class="toolbar-row">
+        <label for="fileInput">CSV ファイル</label>
+        <input id="fileInput" type="file" accept=".csv,text/csv">
+      </div>
 
-/*
-ファイルが読み込まれた時の処理
-inputタグのイベント処理を作成しchangeを使ってファイルを読み込んだかどうかを検知する
-*/
-form.myfile.addEventListener('change', function(e) {
-	/*
-	読み込んだファイル情報を取得
-	e.target.filesで読み込んだファイルの情報にアクセスできる
-	0番目の要素に読み込んだファイルのデータがある
-	*/
-	var result = e.target.files[0];
+      <div class="toolbar-row">
+        <label for="encodingSelect">文字コード</label>
+        <select id="encodingSelect">
+          <option value="utf-8" selected>UTF-8</option>
+          <option value="shift-jis">Shift_JIS</option>
+        </select>
 
-	// FileReaderのインスタンスを作成する
-	var reader = new FileReader();
+        <button id="selectAllButton" type="button" disabled>全選択</button>
+        <button id="clearButton" type="button" disabled>全解除</button>
+        <button id="convertButton" type="button" disabled>JSON に変換</button>
+        <a id="downloadLink" class="button" aria-disabled="true">JSON を保存</a>
+      </div>
 
-	// FileReaderオブジェクトのインスタンスをもとに、readAsText()で読み込んだファイルの中身を取得する
-	reader.readAsText(result, 'shift-jis');
+      <div>
+        <label>出力列</label>
+        <div id="columnSelector" class="checkbox-grid"></div>
+      </div>
+    </section>
 
-	/*
-	ファイルの中身を取得後に処理を行う
-		ファイルの中身をtextarea内に表示する
-		取得したファイルの中身はreader.resultに格納されている
-	*/
-	reader.addEventListener('load', function() {
-		fileName = e.target.files[0].name.split(/\.(?=[^.]+$)/);
-		form.output.textContent = reader.result;
-		form.conversion.textContent = "";
+    <section class="panel">
+      <div class="section-title">
+        <label for="csvPreview">CSV プレビュー</label>
+        <span id="csvStatus" class="status">ファイル未選択</span>
+      </div>
+      <textarea id="csvPreview" readonly></textarea>
+    </section>
 
-		// 空行以外のときだけ返す ["a,b,c","a,b,c","a,b,c"]
-		lines = reader.result.split("\n").filter(line=> line);
+    <section class="panel">
+      <div class="section-title">
+        <label for="jsonOutput">JSON 出力</label>
+        <span id="jsonStatus" class="status">未変換</span>
+      </div>
+      <textarea id="jsonOutput" readonly></textarea>
+    </section>
+  </main>
 
-		// 項目名を取得 ["A","B","C"]
-		headers = lines[0].split(",");
+  <script>
+    const state = {
+      baseName: "output",
+      headers: [],
+      rows: [],
+      downloadUrl: null,
+    };
 
-		// 項目名を表示
-		if (inputArea.children != null) {
-			while (inputArea.firstChild) inputArea.removeChild(inputArea.firstChild);
-		}
-		headers.forEach(function(h, i) {
-			var label = document.createElement('label');
-			var inputCheck = document.createElement('input');
-			var span = document.createElement('span');
-			var br = document.createElement('br');
-			inputCheck.type ="checkbox";
-			inputCheck.name = h;
-			inputCheck.classList.add('ckbox');
-			inputCheck.setAttribute("id", "ckbox" + i);
-			inputCheck.setAttribute("checked", "checked");
-			span.innerHTML = h;
-			label.appendChild(inputCheck);
-			label.appendChild(span);
-			inputArea.appendChild(label);
-			inputArea.appendChild(br);
-		});
-	})
-})
+    const fileInput = document.getElementById("fileInput");
+    const encodingSelect = document.getElementById("encodingSelect");
+    const selectAllButton = document.getElementById("selectAllButton");
+    const clearButton = document.getElementById("clearButton");
+    const convertButton = document.getElementById("convertButton");
+    const downloadLink = document.getElementById("downloadLink");
+    const columnSelector = document.getElementById("columnSelector");
+    const csvPreview = document.getElementById("csvPreview");
+    const jsonOutput = document.getElementById("jsonOutput");
+    const csvStatus = document.getElementById("csvStatus");
+    const jsonStatus = document.getElementById("jsonStatus");
 
-conversionBtn.addEventListener('click', function() {
-	var ckbox = document.getElementsByClassName('ckbox');
-	var ckStatus = [];
-	// 選択されたチェックボックスのindexを格納
-	for (var i = 0; i < ckbox.length; i++) {
-		if (ckbox[i].checked) {
-			ckStatus.push(i);
-		}
-	}
+    function resetDownloadLink() {
+      if (state.downloadUrl) {
+        URL.revokeObjectURL(state.downloadUrl);
+      }
+      state.downloadUrl = null;
+      downloadLink.removeAttribute("href");
+      downloadLink.removeAttribute("download");
+      downloadLink.setAttribute("aria-disabled", "true");
+    }
 
-	var results = [];
-	for (var i = 1; i < lines.length; i++){
-		var obj = {};
-		// データの行を一行ずつ読み込む ["a","b","c"]
-		var currentline = lines[i].split(",");
-		for(var j = 0; j < ckStatus.length; j++) {
-			// チェックボックスで選択された項目名が順番に入る
-			var header = headers[ckStatus[j]];
-			// 「KEY　:　VALUE」 一件分のオブジェクトに入れるための項目と値のセットの形を作る
-			obj[header] = currentline[ckStatus[j]];
-		}
-		// 一件ずつオブジェクトを追加する
-		results.push(obj);
-	}
+    function setControlsEnabled(enabled) {
+      selectAllButton.disabled = !enabled;
+      clearButton.disabled = !enabled;
+      convertButton.disabled = !enabled;
+    }
 
-	// JSON.stringifyでJavaScriptの値をJSON文字列に変換
-	var jsonStr = JSON.stringify(results, null, '\t');
-	form.conversion.textContent = jsonStr;
+    function parseCsv(text) {
+      const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const rows = [];
+      let cell = "";
+      let row = [];
+      let inQuotes = false;
 
-	exportLink.textContent = 'ファイル出力';
-	exportLink.download = fileName[0] + '.json';
-	exportLink.href = window.URL.createObjectURL(new Blob([jsonStr], { type: 'text/plain' }));
-	exportLink.dataset.downloadurl = ['text/plain', exportLink.download, exportLink.href].join(':');
-});
+      for (let index = 0; index < normalized.length; index += 1) {
+        const char = normalized[index];
+        const nextChar = normalized[index + 1];
 
-function onRadioButtonChange() {
-	formElem = document.getElementById( "form" );
-	// form要素内のラジオボタングループ(name="selectFile")を取得
-	radioNodeList = formElem.selectFile;
-	// 選択状態の値(value)を取得
-	radioChecked = radioNodeList.value;
-}
-</script>
+        if (char === "\"") {
+          if (inQuotes && nextChar === "\"") {
+            cell += "\"";
+            index += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+
+        if (char === "," && !inQuotes) {
+          row.push(cell);
+          cell = "";
+          continue;
+        }
+
+        if (char === "\n" && !inQuotes) {
+          row.push(cell);
+          if (row.some((value) => value !== "")) {
+            rows.push(row);
+          }
+          row = [];
+          cell = "";
+          continue;
+        }
+
+        cell += char;
+      }
+
+      if (cell !== "" || row.length > 0) {
+        row.push(cell);
+        if (row.some((value) => value !== "")) {
+          rows.push(row);
+        }
+      }
+
+      return rows;
+    }
+
+    function sanitizeHeaders(rawHeaders) {
+      return rawHeaders.map((header, index) => {
+        const trimmed = (header ?? "").trim();
+        return trimmed || `column_${index + 1}`;
+      });
+    }
+
+    function renderColumnSelector(headers) {
+      columnSelector.replaceChildren();
+
+      headers.forEach((header, index) => {
+        const label = document.createElement("label");
+        label.className = "checkbox-item";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = String(index);
+        checkbox.checked = true;
+
+        const text = document.createElement("span");
+        text.textContent = header;
+
+        label.append(checkbox, text);
+        columnSelector.append(label);
+      });
+    }
+
+    function getSelectedIndexes() {
+      return [...columnSelector.querySelectorAll('input[type="checkbox"]')]
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => Number(checkbox.value));
+    }
+
+    function toObjects(headers, rows, selectedIndexes) {
+      return rows.map((row) => {
+        const record = {};
+
+        selectedIndexes.forEach((index) => {
+          record[headers[index]] = row[index] ?? "";
+        });
+
+        return record;
+      });
+    }
+
+    async function readFileText(file, encoding) {
+      const buffer = await file.arrayBuffer();
+      return new TextDecoder(encoding).decode(buffer);
+    }
+
+    async function loadCsvFile() {
+      const [file] = fileInput.files;
+      if (!file) {
+        return;
+      }
+
+      resetDownloadLink();
+      jsonOutput.value = "";
+      jsonStatus.textContent = "未変換";
+
+      const text = await readFileText(file, encodingSelect.value);
+      const rows = parseCsv(text);
+
+      if (rows.length === 0) {
+        throw new Error("CSV に有効な行がありません。");
+      }
+
+      state.baseName = file.name.replace(/\.[^.]+$/, "") || "output";
+      state.headers = sanitizeHeaders(rows[0]);
+      state.rows = rows.slice(1);
+
+      csvPreview.value = text;
+      csvStatus.textContent = `${state.rows.length} 行 / ${state.headers.length} 列`;
+      renderColumnSelector(state.headers);
+      setControlsEnabled(true);
+    }
+
+    function updateDownload(jsonText) {
+      resetDownloadLink();
+      state.downloadUrl = URL.createObjectURL(
+        new Blob([jsonText], { type: "application/json" })
+      );
+      downloadLink.href = state.downloadUrl;
+      downloadLink.download = `${state.baseName}.json`;
+      downloadLink.setAttribute("aria-disabled", "false");
+    }
+
+    fileInput.addEventListener("change", async () => {
+      try {
+        await loadCsvFile();
+      } catch (error) {
+        state.headers = [];
+        state.rows = [];
+        csvPreview.value = "";
+        csvStatus.textContent = error.message;
+        columnSelector.replaceChildren();
+        setControlsEnabled(false);
+      }
+    });
+
+    encodingSelect.addEventListener("change", async () => {
+      if (fileInput.files.length === 0) {
+        return;
+      }
+
+      try {
+        await loadCsvFile();
+      } catch (error) {
+        csvStatus.textContent = error.message;
+      }
+    });
+
+    selectAllButton.addEventListener("click", () => {
+      columnSelector.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+        checkbox.checked = true;
+      });
+    });
+
+    clearButton.addEventListener("click", () => {
+      columnSelector.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+    });
+
+    convertButton.addEventListener("click", () => {
+      const selectedIndexes = getSelectedIndexes();
+      if (selectedIndexes.length === 0) {
+        jsonStatus.textContent = "1 列以上選択してください";
+        jsonOutput.value = "";
+        resetDownloadLink();
+        return;
+      }
+
+      const records = toObjects(state.headers, state.rows, selectedIndexes);
+      const jsonText = JSON.stringify(records, null, 2);
+      jsonOutput.value = jsonText;
+      jsonStatus.textContent = `${records.length} 件を変換`;
+      updateDownload(jsonText);
+    });
+
+    window.addEventListener("beforeunload", resetDownloadLink);
+  </script>
 </body>
 </html>
